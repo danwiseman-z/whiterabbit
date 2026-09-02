@@ -18,13 +18,26 @@ import (
 	"github.com/danwiseman-z/whiterabbit/internal/tui"
 )
 
+// Build information, filled in by the linker at release time.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	var (
-		dateFlag   = flag.String("date", "", "day to show, YYYY-MM-DD (default today)")
-		configFlag = flag.String("config", "", "path to config file")
-		plainFlag  = flag.Bool("plain", false, "print the day's report and exit instead of starting the TUI")
+		dateFlag    = flag.String("date", "", "day to show, YYYY-MM-DD (default today)")
+		configFlag  = flag.String("config", "", "path to config file")
+		plainFlag   = flag.Bool("plain", false, "print the day's report and exit instead of starting the TUI")
+		versionFlag = flag.Bool("version", false, "print the version and exit")
 	)
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("whiterabbit %s (%s, built %s)\n", version, commit, date)
+		return
+	}
 
 	if err := run(*dateFlag, *configFlag, *plainFlag); err != nil {
 		fmt.Fprintln(os.Stderr, "whiterabbit:", err)

@@ -33,3 +33,6 @@ go.work.sum
 
 # Built binary
 /whiterabbit
+
+# goreleaser output
+/dist/
