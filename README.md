@@ -19,8 +19,8 @@ to you that sits in an "In Progress" column on a GitHub Project board.
    total             55m
 
    IN PROGRESS  assigned to you on a project board
-   whiterabbit      #12          Show project boards on the day view  · Roadmap
-   workstation      PR #40       Pin kind to 0.24  · Roadmap
+   whiterabbit   whiterabbit  #12     Show project boards on the day view  · Roadmap
+   workstation   kindcluster  PR #40  Pin kind to 0.24  · Roadmap
 
  h/l day  H/L week  t today  enter detail  r refresh  p projects  a add  q quit
 ```
@@ -161,9 +161,9 @@ push produced.
 whiterabbit searches for open issues and pull requests assigned to you, then
 reads the [GitHub Projects](https://docs.github.com/issues/planning-and-tracking-with-projects)
 boards each one is on and keeps the ones whose Status matches
-`in_progress_statuses`. Each line is labelled with the whiterabbit project that
-tracks the item's repo, or the bare repo name when none does, and ends with the
-board's name. An item on two boards is listed once per board. The list is
+`in_progress_statuses`. Each line shows the whiterabbit project that tracks the
+item's repo (or `-` when none does), the repo, the issue or PR number, its
+title, and the board's name. An item on two boards is listed once per board. The list is
 fetched once at startup and again on `r`; it is not tied to the selected day.
 
 Draft issues that exist only on a board, with no issue behind them, are not

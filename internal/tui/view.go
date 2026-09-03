@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -142,20 +143,36 @@ func (m Model) inProgressView(width, room int) string {
 	}
 
 	labels := m.itemLabels()
-	shown := len(m.items)
+	items := append([]gh.WorkItem(nil), m.items...)
+	sort.SliceStable(items, func(i, j int) bool { return labels[items[i].Repo].text < labels[items[j].Repo].text })
+	shown := len(items)
 	if room > 0 && shown > room {
 		shown = max(1, room-1)
 	}
-	for _, it := range m.items[:shown] {
-		label := pad(truncate(labels[it.Repo], width), width)
-		ref := it.Ref()
-		if it.IsPR {
-			ref = "PR " + ref
+	repoWidth, refWidth := 4, 3
+	for _, it := range items[:shown] {
+		if n := len(it.RepoName()); n > repoWidth {
+			repoWidth = n
 		}
+		if n := len(it.Ref()); n > refWidth {
+			refWidth = n
+		}
+	}
+	if repoWidth > 24 {
+		repoWidth = 24
+	}
+	for _, it := range items[:shown] {
+		l := labels[it.Repo]
+		label := pad(truncate(l.text, width), width)
+		if !l.tracked {
+			label = subtleStyle.Render(label)
+		}
+		repo := pad(truncate(it.RepoName(), repoWidth), repoWidth)
+		ref := pad(it.Ref(), refWidth)
 		if it.IsDraft {
 			ref += " draft"
 		}
-		line := "   " + label + "  " + kindStyle.Render(pad(ref, 12)) + " " + it.Title +
+		line := "   " + label + "  " + subtleStyle.Render(repo) + "  " + kindStyle.Render(ref) + "  " + it.Title +
 			subtleStyle.Render("  · "+it.Project)
 		b.WriteString(truncate(line, m.width) + "\n")
 	}
@@ -165,18 +182,26 @@ func (m Model) inProgressView(width, room int) string {
 	return b.String()
 }
 
+// itemLabel is how one repo's items are labelled in the in-progress list.
+type itemLabel struct {
+	text string
+	// tracked is set when text is a whiterabbit project name rather than the
+	// fallback for a repo no project tracks.
+	tracked bool
+}
+
 // itemLabels maps each item's repo to the whiterabbit project it belongs to,
 // falling back to the bare repo name for repos no project tracks.
-func (m Model) itemLabels() map[string]string {
-	labels := map[string]string{}
+func (m Model) itemLabels() map[string]itemLabel {
+	labels := map[string]itemLabel{}
 	for _, it := range m.items {
 		if _, ok := labels[it.Repo]; ok {
 			continue
 		}
-		labels[it.Repo] = subtleStyle.Render(shortRepo(it.Repo))
+		labels[it.Repo] = itemLabel{text: "-"}
 		for _, p := range m.cfg.Projects {
 			if p.HasRepo(it.Repo) {
-				labels[it.Repo] = p.Name
+				labels[it.Repo] = itemLabel{text: p.Name, tracked: true}
 				break
 			}
 		}

@@ -154,18 +154,31 @@ func printInProgress(cfg *config.Config, client *gh.Client, ctx context.Context,
 		fmt.Println("  (nothing assigned to you is in progress)")
 		return
 	}
+	labels := map[string]string{}
 	for _, it := range items {
-		label := it.Repo
+		labels[it.Repo] = it.RepoName()
 		for _, p := range cfg.Projects {
 			if p.HasRepo(it.Repo) {
-				label = p.Name
+				labels[it.Repo] = p.Name
 				break
 			}
 		}
-		ref := it.Ref()
-		if it.IsPR {
-			ref = "PR " + ref
+	}
+	sort.SliceStable(items, func(i, j int) bool { return labels[items[i].Repo] < labels[items[j].Repo] })
+	repoWidth := 4
+	for _, it := range items {
+		if n := len(it.RepoName()); n > repoWidth {
+			repoWidth = n
 		}
-		fmt.Printf("  %-*s  %-10s %s  (%s)\n", width, label, ref, it.Title, it.Project)
+	}
+	if repoWidth > 24 {
+		repoWidth = 24
+	}
+	for _, it := range items {
+		repo := it.RepoName()
+		if len(repo) > repoWidth {
+			repo = repo[:repoWidth-1] + "~"
+		}
+		fmt.Printf("  %-*s  %-*s  %-8s %s  (%s)\n", width, labels[it.Repo], repoWidth, repo, it.Ref(), it.Title, it.Project)
 	}
 }

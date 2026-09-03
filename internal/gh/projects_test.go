@@ -88,3 +88,17 @@ func TestInProgressWithNoStatusesSkipsGH(t *testing.T) {
 		t.Errorf("got %v, %v; want nil, nil", items, err)
 	}
 }
+
+func TestRef(t *testing.T) {
+	issue := WorkItem{Repo: "o/api", Number: 12}
+	pr := WorkItem{Repo: "o/api", Number: 40, IsPR: true}
+	for got, want := range map[string]string{
+		issue.Ref():      "#12",
+		pr.Ref():         "PR #40",
+		issue.RepoName(): "api",
+	} {
+		if got != want {
+			t.Errorf("Ref = %q, want %q", got, want)
+		}
+	}
+}

@@ -25,8 +25,22 @@ type WorkItem struct {
 	Status string
 }
 
-// Ref is the short "#12" or "owner/repo#12" form used in listings.
-func (w WorkItem) Ref() string { return fmt.Sprintf("#%d", w.Number) }
+// Ref is the item's reference for listings: "#12" for an issue, "PR #12" for
+// a pull request.
+func (w WorkItem) Ref() string {
+	if w.IsPR {
+		return fmt.Sprintf("PR #%d", w.Number)
+	}
+	return fmt.Sprintf("#%d", w.Number)
+}
+
+// RepoName is the repo without its owner prefix.
+func (w WorkItem) RepoName() string {
+	if i := strings.Index(w.Repo, "/"); i >= 0 {
+		return w.Repo[i+1:]
+	}
+	return w.Repo
+}
 
 // ErrProjectScope is returned when the gh token cannot read Projects.
 var ErrProjectScope = fmt.Errorf("the gh token cannot read projects: run `gh auth refresh -s read:project`")
