@@ -51,6 +51,11 @@ type dayMsg struct {
 	err  error
 }
 
+type itemsMsg struct {
+	items []gh.WorkItem
+	err   error
+}
+
 // Model is the bubbletea model for the whole app.
 type Model struct {
 	cfg    *config.Config
@@ -68,6 +73,9 @@ type Model struct {
 
 	rows       []Row
 	cache      map[string]*dayData
+	items      []gh.WorkItem
+	itemsState itemsState
+	itemsErr   string
 	cursor     int
 	projCursor int
 	detail     int
@@ -80,6 +88,17 @@ type Model struct {
 	picker  picker
 	owners  []string
 }
+
+// itemsState tracks the assigned-to-me project items, which are fetched once
+// rather than per day.
+type itemsState int
+
+const (
+	itemsIdle itemsState = iota
+	itemsLoading
+	itemsLoaded
+	itemsFailed
+)
 
 // New builds the initial model for the given day.
 func New(cfg *config.Config, client *gh.Client, day time.Time) Model {
@@ -150,6 +169,30 @@ func (m Model) fetch(day time.Time) tea.Cmd {
 		}
 		return dayMsg{key: key, data: data}
 	}
+}
+
+// fetchItems loads the open issues and PRs assigned to the user that sit in
+// an in-progress column on a GitHub Project.
+func (m Model) fetchItems() tea.Cmd {
+	client := m.client
+	statuses := m.cfg.Settings.InProgressStatuses
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		items, err := client.InProgress(ctx, statuses)
+		return itemsMsg{items: items, err: err}
+	}
+}
+
+// loadItems starts the project items fetch unless the feature is switched off.
+func (m *Model) loadItems() tea.Cmd {
+	if len(m.cfg.Settings.InProgressStatuses) == 0 {
+		m.itemsState = itemsIdle
+		return nil
+	}
+	m.itemsState = itemsLoading
+	m.itemsErr = ""
+	return tea.Batch(m.spinner.Tick, m.fetchItems())
 }
 
 // load shows a cached day immediately, or starts a fetch for it.
@@ -224,7 +267,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		if !m.loading && !m.picker.loading {
+		if !m.loading && !m.picker.loading && m.itemsState != itemsLoading {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -242,7 +285,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cfg.User = msg.login
 			_ = m.cfg.Save()
 		}
-		return m, m.load(false)
+		return m, tea.Batch(m.load(false), m.loadItems())
+
+	case itemsMsg:
+		if msg.err != nil {
+			m.itemsState = itemsFailed
+			m.itemsErr = msg.err.Error()
+			return m, nil
+		}
+		m.itemsState = itemsLoaded
+		m.items = msg.items
+		return m, nil
 
 	case dayMsg:
 		if msg.err != nil {
@@ -349,7 +402,7 @@ func (m Model) handleDayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.day = startOfDay(time.Now())
 		return m, m.load(false)
 	case "r":
-		return m, m.load(true)
+		return m, tea.Batch(m.load(true), m.loadItems())
 	case "p":
 		m.state = stateProjects
 		m.confirming = false

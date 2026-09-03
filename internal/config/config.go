@@ -16,6 +16,16 @@ type Project struct {
 	Repos []string `json:"repos"`
 }
 
+// HasRepo reports whether the project tracks repo, ignoring case.
+func (p Project) HasRepo(repo string) bool {
+	for _, r := range p.Repos {
+		if strings.EqualFold(r, repo) {
+			return true
+		}
+	}
+	return false
+}
+
 // Settings tune how raw GitHub events are turned into time estimates.
 type Settings struct {
 	// GapMinutes is the idle gap that splits one work session from the next.
@@ -28,6 +38,10 @@ type Settings struct {
 	// MaxSessionMinutes caps a single session so one long-running day of
 	// scattered events cannot report an absurd total.
 	MaxSessionMinutes int `json:"max_session_minutes"`
+	// InProgressStatuses are the GitHub Project status columns that count as
+	// "in progress" for the assigned-to-me list on the day view. Matching
+	// ignores case. An empty list turns the section off.
+	InProgressStatuses []string `json:"in_progress_statuses"`
 }
 
 // Config is the whole on-disk state.
@@ -44,10 +58,11 @@ type Config struct {
 // DefaultSettings are used for a fresh config and to fill in zero values.
 func DefaultSettings() Settings {
 	return Settings{
-		GapMinutes:        45,
-		LeadInMinutes:     20,
-		MinSessionMinutes: 15,
-		MaxSessionMinutes: 240,
+		GapMinutes:         45,
+		LeadInMinutes:      20,
+		MinSessionMinutes:  15,
+		MaxSessionMinutes:  240,
+		InProgressStatuses: []string{"In Progress"},
 	}
 }
 
@@ -110,6 +125,10 @@ func (c *Config) normalize() {
 	}
 	if c.Settings.MaxSessionMinutes <= 0 {
 		c.Settings.MaxSessionMinutes = d.MaxSessionMinutes
+	}
+	if c.Settings.InProgressStatuses == nil {
+		// Absent from an older config file; an explicit [] is a deliberate off.
+		c.Settings.InProgressStatuses = d.InProgressStatuses
 	}
 	for i := range c.Projects {
 		c.Projects[i].Repos = NormalizeRepos(c.Projects[i].Repos)

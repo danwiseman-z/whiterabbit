@@ -72,15 +72,7 @@ func (m Model) dayView() string {
 	case len(m.cfg.Projects) == 0:
 		b.WriteString(" " + subtleStyle.Render("No projects yet. Press a to add one.") + "\n")
 	default:
-		nameWidth := 12
-		for _, r := range m.rows {
-			if n := lipgloss.Width(r.Project.Name); n > nameWidth {
-				nameWidth = n
-			}
-		}
-		if nameWidth > 30 {
-			nameWidth = 30
-		}
+		nameWidth := projectColumnWidth(m.rows)
 		b.WriteString("   " + headerStyle.Render(pad("PROJECT", nameWidth)+"  "+padLeft("TIME", 7)+"   ACTIVITY") + "\n")
 		for i, r := range m.rows {
 			cursor := "   "
@@ -105,9 +97,91 @@ func (m Model) dayView() string {
 			totalStyle.Render(padLeft(estimate.FormatDuration(m.Total()), 7)) + "\n")
 	}
 
+	if m.itemsState != itemsIdle {
+		b.WriteString("\n")
+		// Leave room for the footer plus a "more" line so the screen never scrolls.
+		room := m.height - strings.Count(b.String(), "\n") - len(m.warnings) - 5
+		b.WriteString(m.inProgressView(projectColumnWidth(m.rows), room))
+	}
+
 	b.WriteString("\n")
 	b.WriteString(m.footer("h/l day  H/L week  t today  enter detail  r refresh  p projects  a add  q quit"))
 	return b.String()
+}
+
+// projectColumnWidth is the width of the project column for the given rows.
+func projectColumnWidth(rows []Row) int {
+	w := 12
+	for _, r := range rows {
+		if n := lipgloss.Width(r.Project.Name); n > w {
+			w = n
+		}
+	}
+	if w > 30 {
+		w = 30
+	}
+	return w
+}
+
+// inProgressView lists the user's in-progress project items, labelled with
+// the whiterabbit project their repo belongs to. It shows at most room lines.
+func (m Model) inProgressView(width, room int) string {
+	var b strings.Builder
+	b.WriteString("   " + headerStyle.Render("IN PROGRESS") + subtleStyle.Render("  assigned to you on a project board") + "\n")
+	switch m.itemsState {
+	case itemsLoading:
+		b.WriteString("   " + m.spinner.View() + subtleStyle.Render("reading project boards...") + "\n")
+		return b.String()
+	case itemsFailed:
+		b.WriteString("   " + warnStyle.Render("! "+m.itemsErr) + "\n")
+		return b.String()
+	}
+	if len(m.items) == 0 {
+		b.WriteString("   " + subtleStyle.Render("nothing in progress") + "\n")
+		return b.String()
+	}
+
+	labels := m.itemLabels()
+	shown := len(m.items)
+	if room > 0 && shown > room {
+		shown = max(1, room-1)
+	}
+	for _, it := range m.items[:shown] {
+		label := pad(truncate(labels[it.Repo], width), width)
+		ref := it.Ref()
+		if it.IsPR {
+			ref = "PR " + ref
+		}
+		if it.IsDraft {
+			ref += " draft"
+		}
+		line := "   " + label + "  " + kindStyle.Render(pad(ref, 12)) + " " + it.Title +
+			subtleStyle.Render("  · "+it.Project)
+		b.WriteString(truncate(line, m.width) + "\n")
+	}
+	if shown < len(m.items) {
+		b.WriteString("   " + subtleStyle.Render(fmt.Sprintf("... and %d more", len(m.items)-shown)) + "\n")
+	}
+	return b.String()
+}
+
+// itemLabels maps each item's repo to the whiterabbit project it belongs to,
+// falling back to the bare repo name for repos no project tracks.
+func (m Model) itemLabels() map[string]string {
+	labels := map[string]string{}
+	for _, it := range m.items {
+		if _, ok := labels[it.Repo]; ok {
+			continue
+		}
+		labels[it.Repo] = subtleStyle.Render(shortRepo(it.Repo))
+		for _, p := range m.cfg.Projects {
+			if p.HasRepo(it.Repo) {
+				labels[it.Repo] = p.Name
+				break
+			}
+		}
+	}
+	return labels
 }
 
 func (m Model) detailView() string {

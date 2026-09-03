@@ -133,5 +133,39 @@ func report(cfg *config.Config, client *gh.Client, day time.Time) error {
 		fmt.Printf("  %-*s  %7s   %s\n", width, l.name, estimate.FormatDuration(l.dur), l.activity)
 	}
 	fmt.Printf("  %-*s  %7s\n", width, strings.Repeat("-", width), estimate.FormatDuration(total))
+
+	if len(cfg.Settings.InProgressStatuses) > 0 {
+		fmt.Println()
+		printInProgress(cfg, client, ctx, width)
+	}
 	return nil
+}
+
+// printInProgress lists the open issues and PRs assigned to the user that sit
+// in an in-progress column on a GitHub Project board.
+func printInProgress(cfg *config.Config, client *gh.Client, ctx context.Context, width int) {
+	items, err := client.InProgress(ctx, cfg.Settings.InProgressStatuses)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "! in progress: %v\n", err)
+		return
+	}
+	fmt.Println("  in progress")
+	if len(items) == 0 {
+		fmt.Println("  (nothing assigned to you is in progress)")
+		return
+	}
+	for _, it := range items {
+		label := it.Repo
+		for _, p := range cfg.Projects {
+			if p.HasRepo(it.Repo) {
+				label = p.Name
+				break
+			}
+		}
+		ref := it.Ref()
+		if it.IsPR {
+			ref = "PR " + ref
+		}
+		fmt.Printf("  %-*s  %-10s %s  (%s)\n", width, label, ref, it.Title, it.Project)
+	}
 }
