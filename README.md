@@ -5,7 +5,9 @@ projects, using your GitHub activity as the timesheet.
 
 A *project* is a name plus a list of GitHub repos. Pick a day, and whiterabbit
 shows which projects you touched and a rough estimate of the time you put in.
-These are estimates, not billable hours.
+These are estimates, not billable hours. Below the day's numbers it also lists
+what you are meant to be working on: every open issue or pull request assigned
+to you that sits in an "In Progress" column on a GitHub Project board.
 
 ```
  whiterabbit                                        Wed 2 Sep 2026  (today)
@@ -16,6 +18,10 @@ These are estimates, not billable hours.
    ---------------------
    total             55m
 
+   IN PROGRESS  assigned to you on a project board
+   whiterabbit   whiterabbit  #12     Show project boards on the day view  · Roadmap
+   workstation   kindcluster  PR #40  Pin kind to 0.24  · Roadmap
+
  h/l day  H/L week  t today  enter detail  r refresh  p projects  a add  q quit
 ```
 
@@ -25,6 +31,14 @@ These are estimates, not billable hours.
 - The [`gh` CLI](https://cli.github.com), authenticated (`gh auth login`).
   whiterabbit shells out to `gh api`, so it uses whatever access you already have,
   including private repos.
+- To see the in-progress list, the gh token also needs the `read:project`
+  scope, which `gh auth login` does not grant by default:
+
+  ```sh
+  gh auth refresh -s read:project
+  ```
+
+  Without it everything else still works and the section explains what to run.
 
 ## Install
 
@@ -55,7 +69,7 @@ whiterabbit -config ./other.json # use a different config file
 | `H` / `L` | day | back / forward a week |
 | `t` | day | jump to today |
 | `enter` | day | show the sessions behind a project's estimate |
-| `r` | day | refetch the day, ignoring the cache |
+| `r` | day | refetch the day and the in-progress list, ignoring the cache |
 | `p` | day | manage projects |
 | `a` | day, projects | add a project |
 | `e` / `d` | projects | edit / delete the selected project |
@@ -98,13 +112,18 @@ directly:
     "gap_minutes": 45,
     "lead_in_minutes": 20,
     "min_session_minutes": 15,
-    "max_session_minutes": 240
+    "max_session_minutes": 240,
+    "in_progress_statuses": ["In Progress"]
   }
 }
 ```
 
 `user` is the GitHub login activity is attributed to; it is filled in from `gh`
 on first run. A repo may appear in more than one project.
+
+`in_progress_statuses` names the project board columns that count as in
+progress, compared ignoring case, so add `"Doing"` or `"In Review"` if your
+boards use those. Set it to `[]` to turn the section off.
 
 ## How the estimate works
 
@@ -136,6 +155,19 @@ activity feed to find every branch you actually pushed to that day and walks
 each one, so a day spent on an unmerged feature branch shows up. Branches
 deleted after merging still resolve, because the feed records the commit each
 push produced.
+
+## The in-progress list
+
+whiterabbit searches for open issues and pull requests assigned to you, then
+reads the [GitHub Projects](https://docs.github.com/issues/planning-and-tracking-with-projects)
+boards each one is on and keeps the ones whose Status matches
+`in_progress_statuses`. Each line shows the whiterabbit project that tracks the
+item's repo (or `-` when none does), the repo, the issue or PR number, its
+title, and the board's name. An item on two boards is listed once per board. The list is
+fetched once at startup and again on `r`; it is not tied to the selected day.
+
+Draft issues that exist only on a board, with no issue behind them, are not
+searchable and so do not appear.
 
 ### What it will miss
 

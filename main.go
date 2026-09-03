@@ -133,5 +133,52 @@ func report(cfg *config.Config, client *gh.Client, day time.Time) error {
 		fmt.Printf("  %-*s  %7s   %s\n", width, l.name, estimate.FormatDuration(l.dur), l.activity)
 	}
 	fmt.Printf("  %-*s  %7s\n", width, strings.Repeat("-", width), estimate.FormatDuration(total))
+
+	if len(cfg.Settings.InProgressStatuses) > 0 {
+		fmt.Println()
+		printInProgress(cfg, client, ctx, width)
+	}
 	return nil
+}
+
+// printInProgress lists the open issues and PRs assigned to the user that sit
+// in an in-progress column on a GitHub Project board.
+func printInProgress(cfg *config.Config, client *gh.Client, ctx context.Context, width int) {
+	items, err := client.InProgress(ctx, cfg.Settings.InProgressStatuses)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "! in progress: %v\n", err)
+		return
+	}
+	fmt.Println("  in progress")
+	if len(items) == 0 {
+		fmt.Println("  (nothing assigned to you is in progress)")
+		return
+	}
+	labels := map[string]string{}
+	for _, it := range items {
+		labels[it.Repo] = it.RepoName()
+		for _, p := range cfg.Projects {
+			if p.HasRepo(it.Repo) {
+				labels[it.Repo] = p.Name
+				break
+			}
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return labels[items[i].Repo] < labels[items[j].Repo] })
+	repoWidth := 4
+	for _, it := range items {
+		if n := len(it.RepoName()); n > repoWidth {
+			repoWidth = n
+		}
+	}
+	if repoWidth > 24 {
+		repoWidth = 24
+	}
+	for _, it := range items {
+		repo := it.RepoName()
+		if len(repo) > repoWidth {
+			repo = repo[:repoWidth-1] + "~"
+		}
+		fmt.Printf("  %-*s  %-*s  %-8s %s  (%s)\n", width, labels[it.Repo], repoWidth, repo, it.Ref(), it.Title, it.Project)
+	}
 }

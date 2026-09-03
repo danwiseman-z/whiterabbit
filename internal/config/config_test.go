@@ -22,7 +22,7 @@ func TestLoadMissingFileGivesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.Settings != DefaultSettings() {
+	if !reflect.DeepEqual(cfg.Settings, DefaultSettings()) {
 		t.Errorf("settings = %+v, want defaults", cfg.Settings)
 	}
 	if len(cfg.Projects) != 0 {
@@ -74,5 +74,18 @@ func TestNormalizeFillsZeroSettings(t *testing.T) {
 	}
 	if cfg.Settings.MinSessionMinutes != DefaultSettings().MinSessionMinutes {
 		t.Errorf("min = %d, want default", cfg.Settings.MinSessionMinutes)
+	}
+}
+
+func TestInProgressStatusesDefaultAndExplicitOff(t *testing.T) {
+	cfg := &Config{}
+	cfg.normalize()
+	if !reflect.DeepEqual(cfg.Settings.InProgressStatuses, []string{"In Progress"}) {
+		t.Errorf("missing statuses = %v, want the default", cfg.Settings.InProgressStatuses)
+	}
+	cfg = &Config{Settings: Settings{InProgressStatuses: []string{}}}
+	cfg.normalize()
+	if len(cfg.Settings.InProgressStatuses) != 0 {
+		t.Errorf("explicit [] = %v, want it kept empty", cfg.Settings.InProgressStatuses)
 	}
 }
