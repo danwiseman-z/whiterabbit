@@ -58,6 +58,9 @@ func (c *Client) bin() string {
 // output runs a gh subcommand and returns its stdout, folding stderr into the
 // error so the user sees what GitHub actually said.
 func (c *Client) output(ctx context.Context, args ...string) ([]byte, error) {
+	// No shell is involved: the binary is fixed in code and the arguments are
+	// gh subcommands built from the user's own config, so there is no
+	// injection path. nosemgrep: dangerous-exec-command
 	cmd := exec.CommandContext(ctx, c.bin(), args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -167,7 +170,7 @@ func (c *Client) CheckAuth(ctx context.Context) error {
 	if _, err := exec.LookPath(c.bin()); err != nil {
 		return fmt.Errorf("the gh CLI was not found on PATH: install it from https://cli.github.com")
 	}
-	cmd := exec.CommandContext(ctx, c.bin(), "auth", "status")
+	cmd := exec.CommandContext(ctx, c.bin(), "auth", "status") // nosemgrep: dangerous-exec-command
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
